@@ -96,6 +96,7 @@ segment .bss
 segment .text
 	global	_start
 
+; === FUNCTION ===
 _start:
 
 	; turn on raw mode
@@ -693,6 +694,7 @@ putchar:
 	pop		ebp
 	ret
 
+; === FUNCTION ===
 system:
 
 	push	ebp
