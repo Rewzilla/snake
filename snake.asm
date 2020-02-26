@@ -16,6 +16,7 @@
 %define SYS_WRITE		0x04
 %define SYS_OPEN		0x05
 %define SYS_CLOSE		0x06
+%define SYS_WAITPID		0x07
 %define SYS_EXECVE		0x0b
 %define SYS_IOCTL		0x36
 %define SYS_FCNTL		0x37
@@ -45,7 +46,7 @@
 ; the snake starting position.
 ; top left is considered (0,0)
 %define HEAD_STARTX 2
-%define HEAD_STARTY 4
+%define HEAD_STARTY 2
 %define TAIL_STARTX 2
 %define TAIL_STARTY 2
 
@@ -224,6 +225,9 @@ init_game_state:
 
 	; read the game board file into the global variable
 	call	init_board
+
+	; add the initial snake to the board
+	call	init_snake
 
 	; create the first fruit somewhere
 	call	create_random_fruit
@@ -421,52 +425,74 @@ init_board:
 	push	ebp
 	mov		ebp, esp
 
-	; file descriptor, loop counter, and junk space
-	; ebp-4, ebp-8
-	sub		esp, 12
+	; counters y, x
+	sub		esp, 8
 
-	; open the file
-	mov		eax, SYS_OPEN
-	mov		ebx, _board_file
-	mov		ecx, 0
-	mov		edx, 0
-	int		0x80
-	mov		DWORD [ebp - 4], eax
+	; loop for each row
+	mov		DWORD [ebp - 4], 0
+	outer_loop_top:
+	cmp		DWORD [ebp - 4], HEIGHT
+	jge		outer_loop_end
 
-	; read the file data into the global buffer
-	; line-by-line so we can ignore the newline characters
-	mov		DWORD [ebp - 8], 0
-	read_loop:
-	cmp		DWORD [ebp - 8], HEIGHT
-	je		read_loop_end
+		; loop for each column
+		mov		DWORD [ebp - 8], 0
+		inner_loop_top:
+		cmp		DWORD [ebp - 8], WIDTH
+		jge		inner_loop_end
 
-		; find the offset (WIDTH * counter)
-		mov		eax, WIDTH
-		mul		DWORD [ebp - 8]
-		lea		ebx, [board + eax]
+			; find the x/y offset
+			mov		eax, WIDTH
+			mov		ebx, DWORD [ebp - 4]
+			mul		ebx
+			add		eax, DWORD [ebp - 8]
 
-		; read row into buffer
-		mov		eax, SYS_READ
-		mov		ecx, ebx
-		mov		ebx, DWORD [ebp - 4]
-		mov		edx, WIDTH
-		int		0x80
+			; if we should be printing a wall
+			cmp		DWORD [ebp - 4], 0
+			je		outer
+			cmp		DWORD [ebp - 8], 0
+			je		outer
+			cmp		DWORD [ebp - 4], (HEIGHT - 1)
+			je		outer
+			cmp		DWORD [ebp - 8], (WIDTH - 1)
+			je		outer
 
-		; slurp up newline
-		mov		eax, SYS_READ
-		mov		ebx, DWORD [ebp - 4]
-		lea		ecx, [ebp - 12]
-		mov		edx, 1
-		int		0x80
+				; print the middle of the board
+				mov		BYTE [board + eax], EMPTY_CHAR
 
-	inc		DWORD [ebp - 8]
-	jmp		read_loop
-	read_loop_end:
+			jmp		ifend
+			outer:
 
-	; close the open file handle
-	mov		eax, SYS_CLOSE
-	mov		ebx, DWORD [ebp - 4]
-	int		0x80
+				; print a wall
+				mov		BYTE [board + eax], WALL_CHAR
+
+			ifend:
+
+		inc		DWORD [ebp - 8]
+		jmp		inner_loop_top
+		inner_loop_end:
+
+	inc		DWORD [ebp - 4]
+	jmp		outer_loop_top
+	outer_loop_end:
+
+	mov		esp, ebp
+	pop		ebp
+	ret
+
+; === FUNCTION ===
+init_snake:
+
+	push	ebp
+	mov		ebp, esp
+
+	; find starting x/y offset
+	mov		eax, WIDTH
+	mov		ebx, HEAD_STARTY
+	mul		ebx
+	add		eax, HEAD_STARTX
+
+	; drop the snake head at that location
+	mov		BYTE [board + eax], STARTDIR
 
 	mov		esp, ebp
 	pop		ebp
@@ -722,6 +748,13 @@ system:
 	int		0x80
 
 	parent:
+
+	; else(parent) waitpid(pid)
+	mov		ebx, eax
+	mov		eax, SYS_WAITPID
+	mov		ecx, 0
+	mov		edx, 0
+	int		0x80
 
 	mov		esp, ebp
 	pop		ebp

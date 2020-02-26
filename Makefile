@@ -6,3 +6,9 @@ all: snake.asm
 clean:
 	rm -rf snake
 	rm -rf snake.o
+
+install:
+	cp snake /usr/local/bin/snake
+
+uninstall:
+	rm /usr/local/bin/snake
