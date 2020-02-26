@@ -13,6 +13,7 @@ Classic snake game in 32-bit x86 assembly
 ## Building
 
 `apt install gcc nasm make`
+
 `make`
 
 ## Installing
